@@ -69,10 +69,11 @@
  * BUILD_BASE_INIT places initial (or transferred) logical view in the
  * middle of the available buffer area.
  */
-#define SCROLL_SIZE     (SCROLL_X_WIDTH * SCROLL_Y_DIM)
-#define SCREEN_SIZE	(SCROLL_SIZE * 4 + 1)
-#define BUILD_BUF_SIZE  (SCREEN_SIZE + 20000) 
-#define BUILD_BASE_INIT ((BUILD_BUF_SIZE - SCREEN_SIZE) / 2)
+#define SCROLL_SIZE     (SCROLL_X_WIDTH * SCROLL_Y_DIM) // address space of 1 plane in buffer
+#define SCREEN_SIZE	(SCROLL_SIZE * 4 + 1) // address space of 4 planes in buffer
+#define BUILD_BUF_SIZE  (SCREEN_SIZE + 20000)
+#define BUILD_BASE_INIT ((BUILD_BUF_SIZE - SCREEN_SIZE) / 2) // center of buffer to copy planes to 
+// in the case that a new window request exceeds the boundaries of the buffer
 
 /* Mode X and general VGA parameters */
 #define VID_MEM_SIZE       131072
@@ -199,6 +200,12 @@ static void (*vert_line_fn) (int, int, unsigned char[SCROLL_Y_DIM]);
  * macro used to target a specific video plane or planes when writing
  * to video memory in mode X; bits 8-11 in the mask_hi_bits enable writes
  * to planes 0-3, respectively
+ * My Notes:
+ * %w0 refers to argument 0 in word form (16 bits for our vm)
+ * %b0 refers to argument 0 in byte form (8 bits for our vm)
+ * %% refers to real register
+ * "a" ((mask_hi_bits)) moves input mask_hi_bits into eax
+ * etc.
  */
 #define SET_WRITE_MASK(mask_hi_bits)                                    \
 do {                                                                    \
@@ -576,7 +583,38 @@ clear_screens ()
 int
 draw_vert_line (int x)
 {
-    /* to be written... */
+    unsigned char buf[SCROLL_Y_DIM]; /* buffer for graphical image of line */
+    unsigned char* addr;             /* address of first pixel in build    */
+   				     /*     buffer (without plane offset)  */
+    int p_off;                       /* offset of plane of first pixel     */
+    int i;			     /* loop index over pixels             */
+    
+    /* Check whether requested line falls in the logical view window. */
+    if (x < 0 || x >= SCROLL_X_DIM)
+	return -1;
+
+    /* Get the image of the line. */
+    (*vert_line_fn) (x+show_x, show_y, buf);
+
+    int xplane = (3 - (x+show_x & 3));// tells you what plane the collumn we want to write to is in
+
+    /* Calculate which 4 pixel wide column of screen we're writing to */
+    int largeColumn = x >> 2;
+
+    /* Calculate starting address of first pixel to write to in build buffer. */
+    addr = img3 + (xplane*SCROLL_SIZE) + (show_x >> 2) + (show_y * SCROLL_X_WIDTH); // addr = address of plane containing collumn x
+    addr += largeColumn; // addr = address of first pixel to write to in column x
+
+    // gets offset into each row of xplane for the collumn we wish to overwrite
+
+    // loops through the 4 planes, after the 4 incrementing the offset into the planes and looping through the 4 again
+    /* Copy image data into appropriate planes in build buffer. */
+    for (i = 0; i < SCROLL_Y_DIM; i++) { 
+        *addr = buf[i]; 
+        addr += SCROLL_X_WIDTH; // move to pixel in next row of column x
+    }
+
+    /* Return success. */
     return 0;
 }
 
@@ -602,7 +640,7 @@ draw_horiz_line (int y)
    				     /*     buffer (without plane offset)  */
     int p_off;                       /* offset of plane of first pixel     */
     int i;			     /* loop index over pixels             */
-
+    
     /* Check whether requested line falls in the logical view window. */
     if (y < 0 || y >= SCROLL_Y_DIM)
 	return -1;
@@ -614,14 +652,15 @@ draw_horiz_line (int y)
     (*horiz_line_fn) (show_x, y, buf);
 
     /* Calculate starting address in build buffer. */
-    addr = img3 + (show_x >> 2) + y * SCROLL_X_WIDTH;
+    addr = img3 + (show_x >> 2) + y * SCROLL_X_WIDTH; // addr = address of start of row y in plane 3
 
     /* Calculate plane offset of first pixel. */
-    p_off = (3 - (show_x & 3));
+    p_off = (3 - (show_x & 3)); // tells you what plane first pixel of window is in
 
+    // loops through the 4 planes, after the 4 incrementing the offset into the planes and looping through the 4 again
     /* Copy image data into appropriate planes in build buffer. */
-    for (i = 0; i < SCROLL_X_DIM; i++) {
-        addr[p_off * SCROLL_SIZE] = buf[i];
+    for (i = 0; i < SCROLL_X_DIM; i++) { 
+        addr[p_off * SCROLL_SIZE] = buf[i]; 
 	if (--p_off < 0) {
 	    p_off = 3;
 	    addr++;

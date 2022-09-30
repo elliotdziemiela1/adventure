@@ -84,7 +84,7 @@
 #define NUM_ATTR_REGS          22
 
 /* VGA register settings for mode X */
-static unsigned short mode_X_seq[NUM_SEQUENCER_REGS] = {
+/*static unsigned short mode_X_seq[NUM_SEQUENCER_REGS] = {
     0x0100, 0x2101, 0x0F02, 0x0003, 0x0604
 };
 static unsigned short mode_X_CRTC[NUM_CRTC_REGS] = {
@@ -99,6 +99,27 @@ static unsigned char mode_X_attr[NUM_ATTR_REGS * 2] = {
     0x08, 0x08, 0x09, 0x09, 0x0A, 0x0A, 0x0B, 0x0B, 
     0x0C, 0x0C, 0x0D, 0x0D, 0x0E, 0x0E, 0x0F, 0x0F,
     0x10, 0x41, 0x11, 0x00, 0x12, 0x0F, 0x13, 0x00,
+    0x14, 0x00, 0x15, 0x00
+};
+static unsigned short mode_X_graphics[NUM_GRAPHICS_REGS] = {
+    0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x4005, 0x0506, 0x0F07,
+    0xFF08
+};*/
+static unsigned short mode_X_seq[NUM_SEQUENCER_REGS] = {
+    0x0100, 0x2101, 0x0F02, 0x0003, 0x0604
+};
+static unsigned short mode_X_CRTC[NUM_CRTC_REGS] = {
+    0x5F00, 0x4F01, 0x5002, 0x8203, 0x5404, 0x8005, 0xBF06, 0x1707,/*<change here. bit8 of LC = 0*/
+    0x0008, 0x0109,/*<change here. bit9 of LC = 0*/ 0x000A, 0x000B, 0x000C, 0x000D, 0x000E, 0x000F,
+    0x9C10, 0x8E11, 0x8F12, 0x2813, 0x0014, 0x9615, 0xB916, 0xE317,
+    0xB618/*<change here. bits0-7 of LC = xB6*/
+};
+static unsigned char mode_X_attr[NUM_ATTR_REGS * 2] = {
+    0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03, 
+    0x04, 0x04, 0x05, 0x05, 0x06, 0x06, 0x07, 0x07, 
+    0x08, 0x08, 0x09, 0x09, 0x0A, 0x0A, 0x0B, 0x0B, 
+    0x0C, 0x0C, 0x0D, 0x0D, 0x0E, 0x0E, 0x0F, 0x0F,
+    0x10, 0x61,/*<change here. PixelPanningMode = 1*/ 0x11, 0x00, 0x12, 0x0F, 0x13, 0x00,
     0x14, 0x00, 0x15, 0x00
 };
 static unsigned short mode_X_graphics[NUM_GRAPHICS_REGS] = {
@@ -586,7 +607,6 @@ draw_vert_line (int x)
     unsigned char buf[SCROLL_Y_DIM]; /* buffer for graphical image of line */
     unsigned char* addr;             /* address of first pixel in build    */
    				     /*     buffer (without plane offset)  */
-    int p_off;                       /* offset of plane of first pixel     */
     int i;			     /* loop index over pixels             */
     
     /* Check whether requested line falls in the logical view window. */
@@ -596,14 +616,17 @@ draw_vert_line (int x)
     /* Get the image of the line. */
     (*vert_line_fn) (x+show_x, show_y, buf);
 
-    int xplane = (3 - (x+show_x & 3));// tells you what plane the collumn we want to write to is in
+    int xplane = (3 - ((x+show_x) & 3));
 
     /* Calculate which 4 pixel wide column of screen we're writing to */
-    int largeColumn = x >> 2;
+    int largeColumn = x >> 2; // make sure right shift doesn't update x
 
     /* Calculate starting address of first pixel to write to in build buffer. */
     addr = img3 + (xplane*SCROLL_SIZE) + (show_x >> 2) + (show_y * SCROLL_X_WIDTH); // addr = address of plane containing collumn x
     addr += largeColumn; // addr = address of first pixel to write to in column x
+
+    if (((x+show_x) & 3) < (show_x & 3)) // accounts for the dont care gap in buffer (COULD BE WRONG)
+        addr++;
 
     // gets offset into each row of xplane for the collumn we wish to overwrite
 
@@ -655,13 +678,13 @@ draw_horiz_line (int y)
     addr = img3 + (show_x >> 2) + y * SCROLL_X_WIDTH; // addr = address of start of row y in plane 3
 
     /* Calculate plane offset of first pixel. */
-    p_off = (3 - (show_x & 3)); // tells you what plane first pixel of window is in
+    p_off = (3 - (show_x & 3)); 
 
     // loops through the 4 planes, after the 4 incrementing the offset into the planes and looping through the 4 again
     /* Copy image data into appropriate planes in build buffer. */
     for (i = 0; i < SCROLL_X_DIM; i++) { 
         addr[p_off * SCROLL_SIZE] = buf[i]; 
-	if (--p_off < 0) {
+	if (--p_off < 0) { // resets when <0 instead of == (show_x&3) because this will account for dont care
 	    p_off = 3;
 	    addr++;
 	}

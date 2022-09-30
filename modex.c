@@ -71,6 +71,7 @@
  */
 #define SCROLL_SIZE     (SCROLL_X_WIDTH * SCROLL_Y_DIM) // address space of 1 plane in buffer
 #define SCREEN_SIZE	(SCROLL_SIZE * 4 + 1) // address space of 4 planes in buffer
+#define BAR_SIZE	(18* IMAGE_X_DIM) // address space of 4 planes in status bar
 #define BUILD_BUF_SIZE  (SCREEN_SIZE + 20000)
 #define BUILD_BASE_INIT ((BUILD_BUF_SIZE - SCREEN_SIZE) / 2) // center of buffer to copy planes to 
 // in the case that a new window request exceeds the boundaries of the buffer
@@ -84,35 +85,14 @@
 #define NUM_ATTR_REGS          22
 
 /* VGA register settings for mode X */
-/*static unsigned short mode_X_seq[NUM_SEQUENCER_REGS] = {
-    0x0100, 0x2101, 0x0F02, 0x0003, 0x0604
-};
-static unsigned short mode_X_CRTC[NUM_CRTC_REGS] = {
-    0x5F00, 0x4F01, 0x5002, 0x8203, 0x5404, 0x8005, 0xBF06, 0x1F07,
-    0x0008, 0x4109, 0x000A, 0x000B, 0x000C, 0x000D, 0x000E, 0x000F,
-    0x9C10, 0x8E11, 0x8F12, 0x2813, 0x0014, 0x9615, 0xB916, 0xE317,
-    0xFF18
-};
-static unsigned char mode_X_attr[NUM_ATTR_REGS * 2] = {
-    0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03, 
-    0x04, 0x04, 0x05, 0x05, 0x06, 0x06, 0x07, 0x07, 
-    0x08, 0x08, 0x09, 0x09, 0x0A, 0x0A, 0x0B, 0x0B, 
-    0x0C, 0x0C, 0x0D, 0x0D, 0x0E, 0x0E, 0x0F, 0x0F,
-    0x10, 0x41, 0x11, 0x00, 0x12, 0x0F, 0x13, 0x00,
-    0x14, 0x00, 0x15, 0x00
-};
-static unsigned short mode_X_graphics[NUM_GRAPHICS_REGS] = {
-    0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x4005, 0x0506, 0x0F07,
-    0xFF08
-};*/
 static unsigned short mode_X_seq[NUM_SEQUENCER_REGS] = {
     0x0100, 0x2101, 0x0F02, 0x0003, 0x0604
 };
-static unsigned short mode_X_CRTC[NUM_CRTC_REGS] = {
-    0x5F00, 0x4F01, 0x5002, 0x8203, 0x5404, 0x8005, 0xBF06, 0x1707,/*<change here. bit8 of LC = 0*/
+static unsigned short mode_X_CRTC[NUM_CRTC_REGS] = { // I set LC to be line (182-1)*2
+    0x5F00, 0x4F01, 0x5002, 0x8203, 0x5404, 0x8005, 0xBF06, 0x1F07,/*keep bit8 of LC = 1*/
     0x0008, 0x0109,/*<change here. bit9 of LC = 0*/ 0x000A, 0x000B, 0x000C, 0x000D, 0x000E, 0x000F,
     0x9C10, 0x8E11, 0x8F12, 0x2813, 0x0014, 0x9615, 0xB916, 0xE317,
-    0xB618/*<change here. bits0-7 of LC = xB6*/
+    0x6A18/*<change here. bits0-7 of LC = x6A*/
 };
 static unsigned char mode_X_attr[NUM_ATTR_REGS * 2] = {
     0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03, 
@@ -164,6 +144,7 @@ static void fill_palette_text ();
 static void write_font_data ();
 static void set_text_mode_3 (int clear_scr);
 static void copy_image (unsigned char* img, unsigned short scr_addr);
+static void copy_status_bar (unsigned char* bar);
 
 
 /* 
@@ -199,6 +180,8 @@ static void copy_image (unsigned char* img, unsigned short scr_addr);
 #endif
 #define MEM_FENCE_MAGIC 0xF3
 static unsigned char build[BUILD_BUF_SIZE + 2 * MEM_FENCE_WIDTH];
+static unsigned char bar[18*IMAGE_X_DIM]; /* buffer for the pixel data of the status bar.   
+                                            4 planes formatted just like screen buffer.*/ 
 static int img3_off;		    /* offset of upper left pixel   */
 static unsigned char* img3;	    /* pointer to upper left pixel  */
 static int show_x, show_y;          /* logical view coordinates     */
@@ -332,8 +315,13 @@ set_mode_X (void (*horiz_fill_fn) (int, int, unsigned char[SCROLL_X_DIM]),
         build[BUILD_BUF_SIZE + MEM_FENCE_WIDTH + i] = MEM_FENCE_MAGIC;
     }
 
+    /* Set up the status bar */
+    for (i = 0; i < 18*IMAGE_X_DIM; i++) {
+        bar[i] = 0x01; // palette entry 1
+    }
+    
     /* One display page goes at the start of video memory. */
-    target_img = 0x0000; 
+    target_img = 18*IMAGE_X_WIDTH*2;
 
     /* Map video memory and obtain permission for VGA port access. */
     if (open_memory_and_ports () == -1)
@@ -548,7 +536,10 @@ show_screen ()
 	SET_WRITE_MASK (1 << (i + 8));
 	copy_image (addr + ((p_off - i + 4) & 3) * SCROLL_SIZE + (p_off < i), 
 	            target_img);
+    //my code
+    copy_status_bar(bar[i*BAR_SIZE/4]);
     }
+
 
     /* 
      * Change the VGA registers to point the top left of the screen
@@ -1052,6 +1043,32 @@ copy_image (unsigned char* img, unsigned short scr_addr)
        	"rep movsb    # copy ECX bytes from M[ESI] to M[EDI]  "
       : /* no outputs */
       : "S" (img), "D" (mem_image + scr_addr) 
+      : "eax", "ecx", "memory"
+    );
+}
+
+/*
+ * copy_status_bar
+ *   DESCRIPTION: copy 
+ *   INPUTS: img -- a pointer to the bytes of the status bar
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: copies a status bar from RAM to video memory
+ */   
+static void
+copy_status_bar (unsigned char* bar)
+{
+    /* 
+     * memcpy is actually probably good enough here, and is usually
+     * implemented using ISA-specific features like those below,
+     * but the code here provides an example of x86 string moves
+     */
+    asm volatile (
+        "cld                                                 ;"
+       	"movl $0x05A0,%%ecx                                   ;" // x5A0 = 18*320/4
+       	"rep movsb    # copy ECX bytes from M[ESI] to M[EDI]  "
+      : /* no outputs */
+      : "S" (bar), "D" (mem_image)
       : "eax", "ecx", "memory"
     );
 }

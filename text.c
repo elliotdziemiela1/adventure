@@ -43,29 +43,62 @@
  *   DESCRIPTION: given a string str, return an array of bytes that is the pixel data. Does this by 
  *                  looping through each row i of the output data, inside looping through each character j in string,
  *                  inside looping through each bit k in row i of character j's bit map and writes it the output.
+ *                  Calls helper function plane_order to format output to 3210 plane order before returning.
  *   INPUTS: str -- string to turn convert into pixel data
  *   OUTPUTS: none
  *   RETURN VALUE: pixel data
  *   SIDE EFFECTS: none
  */  
 unsigned char[] text_to_image(unsigned char[] str){
-    unsigned char[] out = malloc(18*320);
+    unsigned char[] out = malloc(18*IMAGE_X_DIM);
     for (int i = 0; i < 16; i++){ // loop through each row of buffer
         unsigned char[] input = str;
-        int j = 0; // j is index into str
-        while(*input){ //while char is not NULL
-            for (int k = 0; k < 8; k++){
-                unsigned char rowBitMap = font_data[*input][i];
-                rowBitMap = rowBitMap >> 7-k; // since the left most bit is at position 7
-                rowBitMap = rowBitMap & 1; // masks the first bit (bit at position k starting from left)
-                if (rowBitMap){
-                    out[(i*320)+(j*8)+k] = 0x02; /// placeholder pixel value
-                } else {
+        int j; // j is index into input/output
+        for(j = 0; j < IMAGE_X_DIM/8; j++){ // 8 is width of character in pixels
+            if (input){ // if not at end of str
+                for (int k = 0; k < 8; k++){
+                    unsigned char rowBitMap = font_data[*input][i];
+                    rowBitMap = rowBitMap >> 7-k; // since the left most bit is at position 7
+                    rowBitMap = rowBitMap & 1; // masks the first bit (bit at position k starting from left)
+                    if (rowBitMap){
+                        out[(i*320)+(j*8)+k] = 0x02; /// placeholder pixel value
+                    } else {
+                        out[(i*320)+(j*8)+k] = 0x00; /// placeholder pixel value
+                    }
+                }
+                input++;
+            } else { // else we've gone through str and want to fill the rest of the buffer with x00
+                for (int k = 0; k < 8; k++){
                     out[(i*320)+(j*8)+k] = 0x00; /// placeholder pixel value
                 }
             }
-            input++;
-            j++;
+        }
+    }
+    return plane_order(out);
+}
+
+/*
+ * plane_order
+ *   DESCRIPTION: Takes in-order bar image data in formats it into 3210 plane 
+ *                  order (identical to display buffer data). Does this by looping through 4 planes (i) of out,
+ *                  inside that looping through each row (j) in img/the current out plane, inside that looping
+ *                  through every pixel (k) of plane i in row j of img, inside that writing pixel k to index
+ *                  planeIndex of plane i of out.
+ *   INPUTS: img -- image data to reformat
+ *   OUTPUTS: none
+ *   RETURN VALUE: reformatted bar image data
+ *   SIDE EFFECTS: none
+ */  
+unsigned char[] plane_order(unsigned char[] img){
+    unsigned char[] out = malloc (18*IMAGE_X_DIM);
+    for (int i = 0; i < 4; i++){ // iterates through each plane in out
+        int outpoff = i*18*IMAGE_X_DIM/4; // offset of plane to write to in out
+        int planeIndex = 0; // index into plane data of out
+        for (int j = 0; j < 18; j++){ // iterates through each row j in img
+            for (int k = i; k < IMAGE_X_DIM; k+=4){ // iterates through each col k in plane i in row j of img
+                out[outpoff+planeIndex] = img[(j*IMAGE_X_DIM)+k];
+                planeIndex++;
+            }
         }
     }
 }

@@ -34,9 +34,41 @@
  */
 
 #include <string.h>
-
 #include "text.h"
 
+#define IMAGE_X_DIM     320   /* pixels; must be divisible by 4             */
+
+/*
+ * text_to_image
+ *   DESCRIPTION: given a string str, return an array of bytes that is the pixel data. Does this by 
+ *                  looping through each row i of the output data, inside looping through each character j in string,
+ *                  inside looping through each bit k in row i of character j's bit map and writes it the output.
+ *   INPUTS: str -- string to turn convert into pixel data
+ *   OUTPUTS: none
+ *   RETURN VALUE: pixel data
+ *   SIDE EFFECTS: none
+ */  
+unsigned char[] text_to_image(unsigned char[] str){
+    unsigned char[] out = malloc(18*320);
+    for (int i = 0; i < 16; i++){ // loop through each row of buffer
+        unsigned char[] input = str;
+        int j = 0; // j is index into str
+        while(*input){ //while char is not NULL
+            for (int k = 0; k < 8; k++){
+                unsigned char rowBitMap = font_data[*input][i];
+                rowBitMap = rowBitMap >> 7-k; // since the left most bit is at position 7
+                rowBitMap = rowBitMap & 1; // masks the first bit (bit at position k starting from left)
+                if (rowBitMap){
+                    out[(i*320)+(j*8)+k] = 0x02; /// placeholder pixel value
+                } else {
+                    out[(i*320)+(j*8)+k] = 0x00; /// placeholder pixel value
+                }
+            }
+            input++;
+            j++;
+        }
+    }
+}
 
 /* 
  * These font data were read out of video memory during text mode and

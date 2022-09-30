@@ -633,6 +633,8 @@ draw_vert_line (int x)
 }
 
 
+
+
 /*
  * draw_horiz_line
  *   DESCRIPTION: Draw a horizontal map line into the build buffer.  The 
@@ -1049,7 +1051,7 @@ copy_image (unsigned char* img, unsigned short scr_addr)
 
 /*
  * copy_status_bar
- *   DESCRIPTION: copy 
+ *   DESCRIPTION: copy one plane to the status bar buffer
  *   INPUTS: img -- a pointer to the bytes of the status bar
  *   OUTPUTS: none
  *   RETURN VALUE: none

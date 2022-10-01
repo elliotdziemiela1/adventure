@@ -180,7 +180,7 @@ static void copy_status_bar (unsigned char* bar);
 #endif
 #define MEM_FENCE_MAGIC 0xF3
 static unsigned char build[BUILD_BUF_SIZE + 2 * MEM_FENCE_WIDTH];
-static unsigned char bar[18*IMAGE_X_DIM]; /* buffer for the pixel data of the status bar.   
+static unsigned char* bar; /* buffer for the pixel data of the status bar.   
                                             4 planes formatted just like screen buffer.*/ 
 static int img3_off;		    /* offset of upper left pixel   */
 static unsigned char* img3;	    /* pointer to upper left pixel  */
@@ -316,9 +316,11 @@ set_mode_X (void (*horiz_fill_fn) (int, int, unsigned char[SCROLL_X_DIM]),
     }
 
     /* Set up the status bar */
-    for (i = 0; i < 18*IMAGE_X_DIM; i++) {
+    /*for (i = 0; i < 18*IMAGE_X_DIM; i++) {
         bar[i] = 0x01; // palette entry 1
     }
+    */
+    bar = text_to_image("test");
     
     /* One display page goes at the start of video memory. */
     target_img = 18*IMAGE_X_WIDTH*2;
@@ -537,7 +539,7 @@ show_screen ()
 	copy_image (addr + ((p_off - i + 4) & 3) * SCROLL_SIZE + (p_off < i), 
 	            target_img);
     //my code
-    copy_status_bar(bar[i*BAR_SIZE/4]);
+    copy_status_bar(bar+(i*BAR_SIZE/4));
     }
 
 

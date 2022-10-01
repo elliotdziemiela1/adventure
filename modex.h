@@ -136,4 +136,7 @@ extern int draw_horiz_line (int y);
 /* draw a vertical line at horizontal pixel x within the logical view window */
 extern int draw_vert_line (int x);
 
+// takes a string and writes it to the bar
+void text_to_bar (char * str);
+
 #endif /* MODEX_H */

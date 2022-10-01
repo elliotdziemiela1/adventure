@@ -316,12 +316,12 @@ set_mode_X (void (*horiz_fill_fn) (int, int, unsigned char[SCROLL_X_DIM]),
     }
 
     /* Set up the status bar */
-    /*for (i = 0; i < 18*IMAGE_X_DIM; i++) {
-        bar[i] = 0x01; // palette entry 1
-    }
+    /*char t[2];
+    *t = 'a';
+    *(t+1) = 0;
+    text_to_bar(t);
     */
-    bar = text_to_image("test");
-    
+   
     /* One display page goes at the start of video memory. */
     target_img = 18*IMAGE_X_WIDTH*2;
 
@@ -539,7 +539,9 @@ show_screen ()
 	copy_image (addr + ((p_off - i + 4) & 3) * SCROLL_SIZE + (p_off < i), 
 	            target_img);
     //my code
-    copy_status_bar(bar+(i*BAR_SIZE/4));
+    if (bar){
+        copy_status_bar(bar+(i*BAR_SIZE/4));
+    }
     }
 
 
@@ -1075,6 +1077,18 @@ copy_status_bar (unsigned char* bar)
       : "S" (bar), "D" (mem_image)
       : "eax", "ecx", "memory"
     );
+}
+
+void text_to_bar (char * str){
+    char * curr = str;
+    int i = 0;
+    while (*curr){
+        i++;
+        curr++;
+    }
+    if (i <= 40){
+        bar = text_to_image(str);
+    }
 }
 
 

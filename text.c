@@ -62,15 +62,15 @@ unsigned char* text_to_image(char* str){
                     rowBitMap = rowBitMap >> (7-k); // since the left most bit is at position 7
                     rowBitMap = rowBitMap & 1; // masks the first bit (bit at position k starting from left)
                     if (rowBitMap){
-                        out[(i*320)+(j*8)+k] = 0x02; /// placeholder pixel value
+                        out[(i*320)+(j*8)+k] = 0x0F; /// placeholder pixel value
                     } else {
-                        out[(i*320)+(j*8)+k] = 0x00; /// placeholder pixel value
+                        out[(i*320)+(j*8)+k] = 0x01; /// placeholder pixel value
                     }
                 }
                 input++;
             } else { // else we've gone through str and want to fill the rest of the buffer with x00
                 for (k = 0; k < 8; k++){
-                    out[(i*320)+(j*8)+k] = 0x00; /// placeholder pixel value
+                    out[(i*320)+(j*8)+k] = 0x01; /// placeholder pixel value
                 }
             }
         }

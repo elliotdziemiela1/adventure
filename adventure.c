@@ -248,6 +248,14 @@ game_loop ()
 	}
 
 	show_screen ();
+	
+	if (*status_msg){
+		(void)pthread_mutex_lock (&msg_lock);
+		text_to_bar(status_msg); // MY CODE
+		(void)pthread_mutex_unlock (&msg_lock);
+	} else {
+		text_to_bar(room and current typing);
+	}
 
 	/*
 	 * Wait for tick.  The tick defines the basic timing of our

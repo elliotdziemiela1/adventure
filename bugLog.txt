@@ -1,0 +1,16 @@
+-	When moving screen right or left, vertical lines from the other edge of the screen are being drawn.
+o	Took me ~5 min to find bug (it was that I was comparing plane offset of the row to write to the starting plane instead of comparing the plane itself to the starting plane)
+o	Fixed it in a second.
+-	Status bar is just mirroring top of screen
+o	Took me ~30 min to realize I put wrong value when initializing registers, accidently turned on a random field.
+-	Status bar is in middle of screen
+o	Took me ~10 min to learn that every address in VRAM is doubled
+o	Just multiplied Line Compare field by 2.
+-	status_msg is never nonzero for printing condition
+o	took me an hour to learn that the message is only nonzero when we type something and hit enter.
+-	Printing status_msg was segfaulting
+o	Took me 30 minutes to realize I was copying status_msg to a declared char pointer, not one with allocated space already. 
+o	Took me 5 min to fix the bug in text_to_bar (copying to a char array of 41 chars.)
+-	Status bar wasn’t printing characters after the end of the string I copied to the inside of it
+o	Took me an hour to realize it’s because the string is NULL terminated
+o	Took me 20 minutes to overwrite the null character in the status bar.

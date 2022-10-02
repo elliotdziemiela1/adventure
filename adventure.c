@@ -186,6 +186,15 @@ cancel_status_thread (void* ignore)
     (void)pthread_cancel (status_thread_id);
 }
 
+// helper function I wrote to get length of a string as an int;
+int getLength(const char * str){
+	int out = 0;
+	while ((*str!='\0')&&str){
+		out++;
+		str++;
+	}
+	return out;
+}
 
 /* 
  * game_loop
@@ -252,16 +261,23 @@ game_loop ()
 
 	if (*status_msg){
 		(void)pthread_mutex_lock (&msg_lock);
-		text_to_bar(status_msg); // MY CODE
+		char message[41];
+		int i; int j = 0;
+		int offset = (40 - strlen(status_msg))/2;
+		for (i = 0; i < 40; i++){
+			if ((i >= offset)&&(i < 40-offset-1)){
+				message[i] = status_msg[j];
+				j++;
+			} else {
+				message[i] = ' ';
+			}
+		};
+
+		//message = status_msg;
+		text_to_bar(message); 
 		(void)pthread_mutex_unlock (&msg_lock);
 	} else {
 		char barText[40];
-		/*
-		char * typed = malloc(40);
-		char * roomName = malloc(40);
-		strcpy(typed, get_typed_command());
-		strcpy(roomName, room_name(game_info.where));
-		*/
 		const char * typed = get_typed_command();
 		const char * roomName = room_name(game_info.where);
 		int i = 0;
@@ -292,30 +308,9 @@ game_loop ()
 			typed++;
 			i++;
 		}
-		/*
-		while (i < roomNameLength){
-			barText[i] = roomName[j];
-			roomName++;
-			i++; j++;
-		}
-		j = 0;
-		while (i < (40-typedLength-roomNameLength)){
-			barText[i] = ' ';
-			i++; j++;
-		}
-		j = 0;
-		while (typedLength){
-			barText[i] = typed[j];
-			typed++;
-			i++; j++;
-		}
-		*/
 		
 		text_to_bar(barText);
-		// free(typed); free(roomName);
 	}
-
-	
 
 	/*
 	 * Wait for tick.  The tick defines the basic timing of our

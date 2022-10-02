@@ -249,13 +249,73 @@ game_loop ()
 
 	show_screen ();
 	
+
 	if (*status_msg){
 		(void)pthread_mutex_lock (&msg_lock);
 		text_to_bar(status_msg); // MY CODE
 		(void)pthread_mutex_unlock (&msg_lock);
 	} else {
-		text_to_bar(room and current typing);
+		char barText[40];
+		/*
+		char * typed = malloc(40);
+		char * roomName = malloc(40);
+		strcpy(typed, get_typed_command());
+		strcpy(roomName, room_name(game_info.where));
+		*/
+		const char * typed = get_typed_command();
+		const char * roomName = room_name(game_info.where);
+		int i = 0;
+		
+		int typedLength = 0; int roomNameLength = 0;
+		const char * curr = typed;
+		while ((*curr!='\0')&&curr){
+			typedLength++;
+			curr++;
+		}
+		curr = roomName;
+		while ((*curr!='\0')&&curr){
+			roomNameLength++;
+			curr++;
+		}
+		while (roomName && (*roomName!='\0') && (i < 20)){
+			barText[i] = *roomName;
+			roomName++;
+			i++;
+		}
+		int j;
+		for (j=0; j < (40-typedLength-roomNameLength-1); j++){
+			barText[i] = ' ';
+			i++;
+		}
+		while (typed && (*typed!='\0') && (i<40)){
+			barText[i] = *typed;
+			typed++;
+			i++;
+		}
+		/*
+		while (i < roomNameLength){
+			barText[i] = roomName[j];
+			roomName++;
+			i++; j++;
+		}
+		j = 0;
+		while (i < (40-typedLength-roomNameLength)){
+			barText[i] = ' ';
+			i++; j++;
+		}
+		j = 0;
+		while (typedLength){
+			barText[i] = typed[j];
+			typed++;
+			i++; j++;
+		}
+		*/
+		
+		text_to_bar(barText);
+		// free(typed); free(roomName);
 	}
+
+	
 
 	/*
 	 * Wait for tick.  The tick defines the basic timing of our

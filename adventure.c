@@ -261,11 +261,11 @@ game_loop ()
 
 	if (*status_msg){
 		(void)pthread_mutex_lock (&msg_lock);
-		char message[41];
+		char message[41]; // number of characters on status bar +1 for null
 		int i; int j = 0;
-		int offset = (40 - strlen(status_msg))/2;
+		int offset = (40 - strlen(status_msg))/2; // offset from left of bar to write string
 		for (i = 0; i < 40; i++){
-			if ((i >= offset)&&(i < 40-offset-1)){
+			if ((i >= offset)&&(i < 40-offset)){
 				message[i] = status_msg[j];
 				j++;
 			} else {
@@ -293,13 +293,13 @@ game_loop ()
 			roomNameLength++;
 			curr++;
 		}
-		while (roomName && (*roomName!='\0') && (i < 20)){
+		while (roomName && (*roomName!='\0') && (i < 20)){ // 20 is halfway point of bar
 			barText[i] = *roomName;
 			roomName++;
 			i++;
 		}
 		int j;
-		for (j=0; j < (40-typedLength-roomNameLength-1); j++){
+		for (j=0; j < (40-typedLength-roomNameLength); j++){
 			barText[i] = ' ';
 			i++;
 		}

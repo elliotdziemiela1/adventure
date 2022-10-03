@@ -38,6 +38,8 @@
 #include "text.h"
 
 #define IMAGE_X_DIM     320   /* pixels; must be divisible by 4             */
+#define PRIMARY_COLOR   0x2C // color of text
+#define SECONDARY_COLOR 0x4 // color of background
 
 /*
  * text_to_image
@@ -53,24 +55,28 @@
 unsigned char* text_to_image(char* str){
     int i; int j; int k;
     unsigned char* out = (unsigned char*)malloc(18*IMAGE_X_DIM);
+    for (k = 0; k < 320; k++){
+        out[k] = SECONDARY_COLOR;
+        out[17*IMAGE_X_DIM+k] = SECONDARY_COLOR;
+    }
     for (i = 0; i < 16; i++){ // loop through each row of buffer
         char * input = str;
         for(j = 0; j < IMAGE_X_DIM/8; j++){ // 8 is width of character in pixels
-            if (input){ // if not at end of str
+            if (input && *input){ // if not at end of str
                 for (k = 0; k < 8; k++){
                     unsigned char rowBitMap = font_data[(int)*input][i];
                     rowBitMap = rowBitMap >> (7-k); // since the left most bit is at position 7
                     rowBitMap = rowBitMap & 1; // masks the first bit (bit at position k starting from left)
                     if (rowBitMap){
-                        out[(i*320)+(j*8)+k] = 0x0F; /// placeholder pixel value
+                        out[(i*320)+(j*8)+k+320] = PRIMARY_COLOR; /// placeholder pixel value
                     } else {
-                        out[(i*320)+(j*8)+k] = 0x01; /// placeholder pixel value
+                        out[(i*320)+(j*8)+k+320] = SECONDARY_COLOR; /// placeholder pixel value
                     }
                 }
                 input++;
             } else { // else we've gone through str and want to fill the rest of the buffer with x00
                 for (k = 0; k < 8; k++){
-                    out[(i*320)+(j*8)+k] = 0x01; /// placeholder pixel value
+                    out[(i*320)+(j*8)+k+320] = SECONDARY_COLOR; /// placeholder pixel value
                 }
             }
         }

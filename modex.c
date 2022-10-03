@@ -46,6 +46,7 @@
 #include <sys/io.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include "modex.h"
 #include "text.h"
@@ -92,7 +93,7 @@ static unsigned short mode_X_CRTC[NUM_CRTC_REGS] = { // I set LC to be line (182
     0x5F00, 0x4F01, 0x5002, 0x8203, 0x5404, 0x8005, 0xBF06, 0x1F07,/*keep bit8 of LC = 1*/
     0x0008, 0x0109,/*<change here. bit9 of LC = 0*/ 0x000A, 0x000B, 0x000C, 0x000D, 0x000E, 0x000F,
     0x9C10, 0x8E11, 0x8F12, 0x2813, 0x0014, 0x9615, 0xB916, 0xE317,
-    0x6A18/*<change here. bits0-7 of LC = x6A*/
+    0x6B18/*<change here. bits0-7 of LC = x6A*/
 };
 static unsigned char mode_X_attr[NUM_ATTR_REGS * 2] = {
     0x00, 0x00, 0x01, 0x01, 0x02, 0x02, 0x03, 0x03, 
@@ -1079,15 +1080,27 @@ copy_status_bar (unsigned char* bar)
     );
 }
 
-void text_to_bar (char * str){
-    char * curr = str;
+
+/*
+ * text_to_bar
+ *   DESCRIPTION: write a string to the status bar
+ *   INPUTS: str -- string to write to bar
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: writes the string to the status bar
+ */   
+void text_to_bar (const char * str){
+    char copy[41];
+    strcpy(copy,str);
+    char * curr = copy;
     int i = 0;
-    while (*curr){
+    while ((*curr)!='\0'){
         i++;
         curr++;
     }
-    if (i <= 40){
-        bar = text_to_image(str);
+    if (i <= 41){
+        copy[i] = 0;
+        bar = text_to_image(copy);
     }
 }
 

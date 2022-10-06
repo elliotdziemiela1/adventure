@@ -52,6 +52,7 @@ struct Node {
 	/* denominator in caluclation of averages (number of pixels mapped to 
 	this node in octree) */
 	int count_;
+	int parent_; /* index of parent in level 2 of octree. =0 if this is a level 2 node*/
 };
 
 /* types local to this file (declared in types.h) */
@@ -430,7 +431,7 @@ read_photo (const char* fname)
 
 	/* initialize nodes of octree levels. Not sure if this syntax works. If not, use for loop */
 	struct Node init;
-	init.rSum=0;init.gSum=0;init.bSum=0;init.count_=0;
+	init.rSum=0;init.gSum=0;init.bSum=0;init.count_=0;init.parent_=0;
 	struct Node octree4[8*8*8*8] = { [0 . . . (8*8*8*8)] = init }; // 4th level of octree
 	struct Node octree2[8*8] = { [0 . . . (8*8)] = init }; // 4th level of octree
 
@@ -497,26 +498,57 @@ read_photo (const char* fname)
 			octree4[index].bSum_+=pixel&0x001F; //x001F=masks first 5 bits
 
 			// expression evaluates to 0000000000RRGGBB, which will be the index into level 2 of the octree
-			index = ((((index>>10)&0x3)<<4)|(((index>>6)&0x3)<<2)|((index>>2)&0x3));
+			uint16_t index2 = ((((index>>10)&0x3)<<4)|(((index>>6)&0x3)<<2)|((index>>2)&0x3));
+			octree4[index].parent_ = index2;
+			
 			/* 14=start of 2 red msbs. x3=masks shifted red and dont care bits. 4=makes space for 4 G and B bits. 
 			9=start of 2 green msbs. x3=masks shifted red and dont care bits. 2=makes space for 2 B bits. 
 			3=start of 2 blue msbs. x3=masks shifted red,green, and dont care bits. */
-			octree2[index].count_++; 
-			octree2[index].rSum_+=(pixel>>11)&0x001F; //11=start of R bits. x001F=masks first 5 bits
-			octree2[index].gSum_+=(pixel>>5)&0x003F; //5=start of R bits. x003F=masks first 6 bits
-			octree2[index].bSum_+=pixel&0x001F; //x001F=masks first 5 bits
+			octree2[index2].count_++; 
+			octree2[index2].rSum_+=(pixel>>11)&0x001F; //11=start of R bits. x001F=masks first 5 bits
+			octree2[index2].gSum_+=(pixel>>5)&0x003F; //5=start of R bits. x003F=masks first 6 bits
+			octree2[index2].bSum_+=pixel&0x001F; //x001F=masks first 5 bits
+			octree2[index2].parent_ = 0;
 		} 
     }
 	// now sort level 4. When determining if an rgb pixel lies in the 128 level 4 palette values, I will iterate
 	// through the first 128 values of octree4 and compare to each. 
 	qsort(octree4, (8*8*8*8), sizeof(Node), cmpfunc);
 
+	int i;
+	for (i=0;i<128;i++){ // code to remove top 128 4th level nodes contribution from second level. 128=top 128 
+	// highest count level 4 nodes
+		octree2[octree4[i].parent_].rSum_ -= octree4[i].rSum_;
+		octree2[octree4[i].parent_].gSum_ -= octree4[i].gSum_;
+		octree2[octree4[i].parent_].bSum_ -= octree4[i].bSum_;
+		octree2[octree4[i].parent_].count_ -= octree4[i].count_;
+	}
+
+	// fill array of new pallete data with consecutive rgb values
+	for (i=0;i<(3*192);i++){ // 3=bytes of palette value. 64=space for level 2 palette values. 192=end of array
+		if (i<(3*64)){
+			if (i%3 = 0)
+				*(p->palette+i) = octree2[i/3].rSum_/octree2[i/3].count_;
+			if (i%3 = 1)
+				*(p->palette+i) = octree2[i/3].gSum_/octree2[i/3].count_;
+			if (i%3 = 2)
+				*(p->palette+i) = octree2[i/3].bSum_/octree2[i/3].count_;
+		} else {
+			if (i%3 = 0)
+				*(p->palette+i) = octree4[(i/3)-64].rSum_/octree4[(i/3)-64].count_;
+			if (i%3 = 1)
+				*(p->palette+i) = octree4[(i/3)-64].gSum_/octree4[(i/3)-64].count_;
+			if (i%3 = 2)
+				*(p->palette+i) = octree4[(i/3)-64].bSum_/octree4[(i/3)-64].count_;
+		}
+	}
+
     /* All done.  Return success. */
     (void)fclose (in);
     return p;
 }
 
-int cmpfunc (const void * a, const void * b) {
+int cmpfunc (const void * a, const void * b) { // with this compare, highest count nodes will be in front
    return (((struct Node*)b)->count_ - ((struct Node*)a)->count_);
 }
 

@@ -45,6 +45,15 @@
 #include "world.h"
 
 
+struct Node {
+	/* numerators in caluclation of averages (sum of values for rgb 
+	pixels mapped to this node in octree) */
+	int rSum_; int gSum_; int bSum_;
+	/* denominator in caluclation of averages (number of pixels mapped to 
+	this node in octree) */
+	int count_;
+};
+
 /* types local to this file (declared in types.h) */
 
 /* 
@@ -419,6 +428,13 @@ read_photo (const char* fname)
     uint16_t y;		/* index over image rows    */
     uint16_t pixel;	/* one pixel from the file  */
 
+	/* initialize nodes of octree levels. Not sure if this syntax works. If not, use for loop */
+	struct Node init;
+	init.rSum=0;init.gSum=0;init.bSum=0;init.count_=0;
+	struct Node octree4[8*8*8*8] = { [0 . . . (8*8*8*8)] = init }; // 4th level of octree
+	struct Node octree2[8*8] = { [0 . . . (8*8)] = init }; // 4th level of octree
+
+
     /* 
      * Open the file, allocate the structure, read the header, do some
      * sanity checks on it, and allocate space to hold the photo pixels.
@@ -451,40 +467,56 @@ read_photo (const char* fname)
      */
     for (y = p->hdr.height; y-- > 0; ) {
 
-	/* Loop over columns from left to right. */
-	for (x = 0; p->hdr.width > x; x++) {
+		/* Loop over columns from left to right. */
+		for (x = 0; p->hdr.width > x; x++) {
 
-	    /* 
-	     * Try to read one 16-bit pixel.  On failure, clean up and 
-	     * return NULL.
-	     */
-	    if (1 != fread (&pixel, sizeof (pixel), 1, in)) {
-		free (p->img);
-		free (p);
-	        (void)fclose (in);
-		return NULL;
+			/* 
+			* Try to read one 16-bit pixel.  On failure, clean up and 
+			* return NULL.
+			*/
+			if (1 != fread (&pixel, sizeof (pixel), 1, in)) {
+			free (p->img);
+			free (p);
+				(void)fclose (in);
+			return NULL;
 
-	    }
-	    /* 
-	     * 16-bit pixel is coded as 5:6:5 RGB (5 bits red, 6 bits green,
-	     * and 6 bits blue).  We change to 2:2:2, which we've set for the
-	     * game objects.  You need to use the other 192 palette colors
-	     * to specialize the appearance of each photo.
-	     *
-	     * In this code, you need to calculate the p->palette values,
-	     * which encode 6-bit RGB as arrays of three uint8_t's.  When
-	     * the game puts up a photo, you should then change the palette 
-	     * to match the colors needed for that photo.
-	     */
-	    p->img[p->hdr.width * y + x] = (((pixel >> 14) << 4) |
-					    (((pixel >> 9) & 0x3) << 2) |
-					    ((pixel >> 3) & 0x3));
-	}
+			}
+			/* 
+			* 16-bit pixel is coded as 5:6:5 RGB (5 bits red, 6 bits green,
+			* and 5 bits blue).
+			*/
+			// expression evaluates to 0000RRRRGGGGBBBB, which will be the index into level 4 of the octree
+			uint16_t index = ((((pixel>>12)&0x15)<<8)|(((pixel>>7)&0x15)<<4)|((pixel>>1)&0x15)); 
+			/* 12=start of 4 red msbs. x15=masks shifted red and dont care bits. 8=makes space for 8 G and B bits. 
+			7=start of 4 green msbs. x15=masks shifted red and dont care bits. 4=makes space for 4 B bits. 
+			1=start of 4 blue msbs. x15=masks shifted red,green, and dont care bits.  */
+
+			octree4[index].count_++; 
+			octree4[index].rSum_+=(pixel>>11)&0x001F; //11=start of R bits. x001F=masks first 5 bits
+			octree4[index].gSum_+=(pixel>>5)&0x003F; //5=start of R bits. x003F=masks first 6 bits
+			octree4[index].bSum_+=pixel&0x001F; //x001F=masks first 5 bits
+
+			// expression evaluates to 0000000000RRGGBB, which will be the index into level 2 of the octree
+			index = ((((index>>10)&0x3)<<4)|(((index>>6)&0x3)<<2)|((index>>2)&0x3));
+			/* 14=start of 2 red msbs. x3=masks shifted red and dont care bits. 4=makes space for 4 G and B bits. 
+			9=start of 2 green msbs. x3=masks shifted red and dont care bits. 2=makes space for 2 B bits. 
+			3=start of 2 blue msbs. x3=masks shifted red,green, and dont care bits. */
+			octree2[index].count_++; 
+			octree2[index].rSum_+=(pixel>>11)&0x001F; //11=start of R bits. x001F=masks first 5 bits
+			octree2[index].gSum_+=(pixel>>5)&0x003F; //5=start of R bits. x003F=masks first 6 bits
+			octree2[index].bSum_+=pixel&0x001F; //x001F=masks first 5 bits
+		} 
     }
+	// now sort level 4. When determining if an rgb pixel lies in the 128 level 4 palette values, I will iterate
+	// through the first 128 values of octree4 and compare to each. 
+	qsort(octree4, (8*8*8*8), sizeof(Node), cmpfunc);
 
     /* All done.  Return success. */
     (void)fclose (in);
     return p;
 }
 
+int cmpfunc (const void * a, const void * b) {
+   return (((struct Node*)b)->count_ - ((struct Node*)a)->count_);
+}
 

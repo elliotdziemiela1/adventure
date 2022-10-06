@@ -487,10 +487,10 @@ read_photo (const char* fname)
 			* and 5 bits blue).
 			*/
 			// expression evaluates to 0000RRRRGGGGBBBB, which will be the index into level 4 of the octree
-			uint16_t index = ((((pixel>>12)&0x15)<<8)|(((pixel>>7)&0x15)<<4)|((pixel>>1)&0x15)); 
-			/* 12=start of 4 red msbs. x15=masks shifted red and dont care bits. 8=makes space for 8 G and B bits. 
-			7=start of 4 green msbs. x15=masks shifted red and dont care bits. 4=makes space for 4 B bits. 
-			1=start of 4 blue msbs. x15=masks shifted red,green, and dont care bits.  */
+			uint16_t index = ((((pixel>>12)&0xF)<<8)|(((pixel>>7)&0xF)<<4)|((pixel>>1)&0xF)); 
+			/* 12=start of 4 red msbs. xF=masks shifted red and dont care bits. 8=makes space for 8 G and B bits. 
+			7=start of 4 green msbs. xF=masks shifted red and dont care bits. 4=makes space for 4 B bits. 
+			1=start of 4 blue msbs. xF=masks shifted red,green, and dont care bits.  */
 
 			octree4[index].count_++; 
 			octree4[index].rSum_+=(pixel>>11)&0x001F; //11=start of R bits. x001F=masks first 5 bits
@@ -498,12 +498,12 @@ read_photo (const char* fname)
 			octree4[index].bSum_+=pixel&0x001F; //x001F=masks first 5 bits
 
 			// expression evaluates to 0000000000RRGGBB, which will be the index into level 2 of the octree
-			uint16_t index2 = ((((index>>10)&0x3)<<4)|(((index>>6)&0x3)<<2)|((index>>2)&0x3));
-			octree4[index].parent_ = index2;
-			
+			uint16_t index2 = ((((pixel>>14)&0x3)<<4)|(((pixel>>9)&0x3)<<2)|((pixel>>3)&0x3));
 			/* 14=start of 2 red msbs. x3=masks shifted red and dont care bits. 4=makes space for 4 G and B bits. 
 			9=start of 2 green msbs. x3=masks shifted red and dont care bits. 2=makes space for 2 B bits. 
 			3=start of 2 blue msbs. x3=masks shifted red,green, and dont care bits. */
+			octree4[index].parent_ = index2;
+		
 			octree2[index2].count_++; 
 			octree2[index2].rSum_+=(pixel>>11)&0x001F; //11=start of R bits. x001F=masks first 5 bits
 			octree2[index2].gSum_+=(pixel>>5)&0x003F; //5=start of R bits. x003F=masks first 6 bits
@@ -543,6 +543,22 @@ read_photo (const char* fname)
 		}
 	}
 
+	rewind(in); // I think this resets the filestream pointer back to the start of the file
+
+	// writes image data of returned photo
+	for (y = p->hdr.height; y-- > 0; ) {
+		/* Loop over columns from left to right. */
+		for (x = 0; p->hdr.width > x; x++) {
+			if (1 != fread (&pixel, sizeof (pixel), 1, in)) {
+				free (p->img);
+				free (p);
+					(void)fclose (in);
+				return NULL;
+			}
+			p->img[p->hdr.width * y + x] = determinePaletteValue(pixel);
+		} 
+    }
+
     /* All done.  Return success. */
     (void)fclose (in);
     return p;
@@ -550,5 +566,28 @@ read_photo (const char* fname)
 
 int cmpfunc (const void * a, const void * b) { // with this compare, highest count nodes will be in front
    return (((struct Node*)b)->count_ - ((struct Node*)a)->count_);
+}
+
+uint8_t determinePaletteValue(uint16_t & pixel, uint8_t * palette){
+	int i; int j;
+	for (i = 0; i < 192; i++){ // 192 =size of newly defined palette section
+		/* 16-bit pixel is coded as 5:6:5 RGB (5 bits red, 6 bits green,
+		and 5 bits blue). */
+		// if we find a match for this RGB value in the palette
+		if (palette[i*3] == ((pixel>>11)&0x001F)){ //11=start of R bits. x001F=masks first 5 bits
+			if (palette[(i*3)+1] == ((pixel>>5)&0x003F)){ //5=start of R bits. x003F=masks first 6 bits
+				if (palette[(i*3)+2] == (pixel&0x001F)){ //x001F=masks first 5 bits
+					return i + 64; //64=offset from start of palette to skip colors for status bar
+				}
+			}
+		} else { // else we return it's level 2 parent
+			// expression evaluates to 00RRGGBB, which will be the index into level 2 of the octree
+			return (uint8_t)((((pixel>>14)&0x3)<<4)|(((pixel>>9)&0x3)<<2)|((pixel>>3)&0x3)) + 64;
+			/* 64=offset from start of palette to skip colors for status bar 
+			14=start of 2 red msbs. x3=masks shifted red and dont care bits. 4=makes space for 4 G and B bits. 
+			9=start of 2 green msbs. x3=masks shifted red and dont care bits. 2=makes space for 2 B bits. 
+			3=start of 2 blue msbs. x3=masks shifted red,green, and dont care bits. */
+		}
+	}
 }
 

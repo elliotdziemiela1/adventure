@@ -86,6 +86,9 @@ extern photo_t* read_photo (const char* fname);
 /* compare function for qsort */
 int cmpfunc (const void * a, const void * b);
 
+/* helper function that determines which palette color an rgb pixel should have */
+uint8_t determinePaletteValue(uint16_t pixel, uint8_t palette[192][3]);
+
 /* 
  * N.B.  I'm aware that Valgrind and similar tools will report the fact that
  * I chose not to bother freeing image data before terminating the program.

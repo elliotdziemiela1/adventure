@@ -327,6 +327,11 @@ prep_room (const room_t* r)
 {
     /* Record the current room. */
     cur_room = r;
+	photo_t * photo = room_photo(r);
+	int i;
+	for (i = 0; i < 192; i++){
+		set_palette_color((photo->palette)[i],i+64);
+	}
 }
 
 
@@ -431,9 +436,9 @@ read_photo (const char* fname)
 
 	/* initialize nodes of octree levels. Not sure if this syntax works. If not, use for loop */
 	struct Node init;
-	init.rSum=0;init.gSum=0;init.bSum=0;init.count_=0;init.parent_=0;
-	struct Node octree4[8*8*8*8] = { [0 . . . (8*8*8*8)] = init }; // 4th level of octree
-	struct Node octree2[8*8] = { [0 . . . (8*8)] = init }; // 4th level of octree
+	init.rSum_=0;init.gSum_=0;init.bSum_=0;init.count_=0;init.parent_=0;
+	struct Node octree4[8*8*8*8] = { init }; // 4th level of octree CHECK THAT THIS IS CORRECT SYNTAX
+	struct Node octree2[8*8] = { init }; // 4th level of octree
 
 
     /* 
@@ -513,7 +518,7 @@ read_photo (const char* fname)
     }
 	// now sort level 4. When determining if an rgb pixel lies in the 128 level 4 palette values, I will iterate
 	// through the first 128 values of octree4 and compare to each. 
-	qsort(octree4, (8*8*8*8), sizeof(Node), cmpfunc);
+	qsort(octree4, (8*8*8*8), sizeof(struct Node), cmpfunc);
 
 	int i;
 	for (i=0;i<128;i++){ // code to remove top 128 4th level nodes contribution from second level. 128=top 128 
@@ -527,19 +532,23 @@ read_photo (const char* fname)
 	// fill array of new pallete data with consecutive rgb values
 	for (i=0;i<(3*192);i++){ // 3=bytes of palette value. 64=space for level 2 palette values. 192=end of array
 		if (i<(3*64)){
-			if (i%3 = 0)
-				*(p->palette+i) = octree2[i/3].rSum_/octree2[i/3].count_;
-			if (i%3 = 1)
-				*(p->palette+i) = octree2[i/3].gSum_/octree2[i/3].count_;
-			if (i%3 = 2)
-				*(p->palette+i) = octree2[i/3].bSum_/octree2[i/3].count_;
+			if (octree2[i/3].count_){
+				if (i%3 == 0)
+					(p->palette)[i/3][0] = octree2[i/3].rSum_/octree2[i/3].count_;
+				if (i%3 == 1)
+					(p->palette)[i/3][1] = octree2[i/3].gSum_/octree2[i/3].count_;
+				if (i%3 == 2)
+					(p->palette)[i/3][2] = octree2[i/3].bSum_/octree2[i/3].count_;
+			}
 		} else {
-			if (i%3 = 0)
-				*(p->palette+i) = octree4[(i/3)-64].rSum_/octree4[(i/3)-64].count_;
-			if (i%3 = 1)
-				*(p->palette+i) = octree4[(i/3)-64].gSum_/octree4[(i/3)-64].count_;
-			if (i%3 = 2)
-				*(p->palette+i) = octree4[(i/3)-64].bSum_/octree4[(i/3)-64].count_;
+			if (octree4[i/3].count_){
+				if (i%3 == 0)
+					(p->palette)[i/3][0] = octree4[(i/3)-64].rSum_/octree4[(i/3)-64].count_;
+				if (i%3 == 1)
+					(p->palette)[i/3][1] = octree4[(i/3)-64].gSum_/octree4[(i/3)-64].count_;
+				if (i%3 == 2)
+					(p->palette)[i/3][2] = octree4[(i/3)-64].bSum_/octree4[(i/3)-64].count_;
+			}
 		}
 	}
 
@@ -555,7 +564,7 @@ read_photo (const char* fname)
 					(void)fclose (in);
 				return NULL;
 			}
-			p->img[p->hdr.width * y + x] = determinePaletteValue(pixel);
+			p->img[p->hdr.width * y + x] = determinePaletteValue(pixel,p->palette);
 		} 
     }
 
@@ -564,30 +573,40 @@ read_photo (const char* fname)
     return p;
 }
 
+// compare function for qsort
 int cmpfunc (const void * a, const void * b) { // with this compare, highest count nodes will be in front
    return (((struct Node*)b)->count_ - ((struct Node*)a)->count_);
 }
 
-uint8_t determinePaletteValue(uint16_t & pixel, uint8_t * palette){
-	int i; int j;
+/* determinePaletteValue
+ *   DESCRIPTION: helper function that determines which palette color an rgb pixel should have
+ *   INPUTS: pixel -- 16bit rgb value for pixel to determine palette value of.
+ * 			palette -- 192*3 byte array of the rgb values for the newly created 192 colors in the palette
+ *   OUTPUTS: none
+ *   RETURN VALUE: palette index
+ *   SIDE EFFECTS: none
+ */
+uint8_t determinePaletteValue(uint16_t pixel, uint8_t palette[192][3]){
+	int i;
 	for (i = 0; i < 192; i++){ // 192 =size of newly defined palette section
 		/* 16-bit pixel is coded as 5:6:5 RGB (5 bits red, 6 bits green,
 		and 5 bits blue). */
 		// if we find a match for this RGB value in the palette
-		if (palette[i*3] == ((pixel>>11)&0x001F)){ //11=start of R bits. x001F=masks first 5 bits
-			if (palette[(i*3)+1] == ((pixel>>5)&0x003F)){ //5=start of R bits. x003F=masks first 6 bits
-				if (palette[(i*3)+2] == (pixel&0x001F)){ //x001F=masks first 5 bits
+		if (palette[i][0] == ((pixel>>11)&0x001F)){ //11=start of R bits. x001F=masks first 5 bits
+			if (palette[i][1] == ((pixel>>5)&0x003F)){ //5=start of R bits. x003F=masks first 6 bits
+				if (palette[i][2] == (pixel&0x001F)){ //x001F=masks first 5 bits
 					return i + 64; //64=offset from start of palette to skip colors for status bar
 				}
 			}
-		} else { // else we return it's level 2 parent
-			// expression evaluates to 00RRGGBB, which will be the index into level 2 of the octree
-			return (uint8_t)((((pixel>>14)&0x3)<<4)|(((pixel>>9)&0x3)<<2)|((pixel>>3)&0x3)) + 64;
-			/* 64=offset from start of palette to skip colors for status bar 
-			14=start of 2 red msbs. x3=masks shifted red and dont care bits. 4=makes space for 4 G and B bits. 
-			9=start of 2 green msbs. x3=masks shifted red and dont care bits. 2=makes space for 2 B bits. 
-			3=start of 2 blue msbs. x3=masks shifted red,green, and dont care bits. */
 		}
 	}
+	// else we return it's level 2 parent
+	// expression evaluates to 00RRGGBB, which will be the index into level 2 of the octree
+	return (uint8_t)((((pixel>>14)&0x3)<<4)|(((pixel>>9)&0x3)<<2)|((pixel>>3)&0x3)) + 64;
+	/* 64=offset from start of palette to skip colors for status bar 
+	14=start of 2 red msbs. x3=masks shifted red and dont care bits. 4=makes space for 4 G and B bits. 
+	9=start of 2 green msbs. x3=masks shifted red and dont care bits. 2=makes space for 2 B bits. 
+	3=start of 2 blue msbs. x3=masks shifted red,green, and dont care bits. */
+	
 }
 

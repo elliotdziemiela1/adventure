@@ -139,4 +139,7 @@ extern int draw_vert_line (int x);
 // takes a string and writes it to the bar
 void text_to_bar (const char * str);
 
+// sets a palette color to RGB value color
+void set_palette_color (unsigned char color[3], unsigned char index);
+
 #endif /* MODEX_H */

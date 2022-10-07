@@ -911,6 +911,23 @@ fill_palette_mode_x ()
     REP_OUTSB (0x03C9, palette_RGB, 64 * 3);
 }
 
+/*
+ * fill_palette_color
+ *   DESCRIPTION: Set VGA palette color at index "index" with necessary RGB value "color"
+ *   INPUTS: color -- array of R byte, G byte, B byte
+ *   OUTPUTS: none
+ *   RETURN VALUE: none
+ *   SIDE EFFECTS: changes the palette color at index "index"
+ */   
+void set_palette_color (unsigned char color[3], unsigned char index)
+{
+    /* Start writing at color index. */
+    OUTB (0x03C8, index);
+
+    /* Write color from array. */
+    REP_OUTSB (0x03C9, color, 3); // 3=bytes for RGB
+}
+
 
 /*
  * fill_palette_text

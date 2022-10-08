@@ -45,16 +45,6 @@
 #include "world.h"
 
 
-struct Node {
-	/* numerators in caluclation of averages (sum of values for rgb 
-	pixels mapped to this node in octree) */
-	int rSum_; int gSum_; int bSum_;
-	/* denominator in caluclation of averages (number of pixels mapped to 
-	this node in octree) */
-	int count_;
-	int parent_; /* index of parent in level 2 of octree. =0 if this is a level 2 node*/
-};
-
 /* types local to this file (declared in types.h) */
 
 /* 
@@ -436,9 +426,16 @@ read_photo (const char* fname)
 
 	/* initialize nodes of octree levels. Not sure if this syntax works. If not, use for loop */
 	struct Node init;
-	init.rSum_=0;init.gSum_=0;init.bSum_=0;init.count_=0;init.parent_=0;
-	struct Node octree4[8*8*8*8] = { init }; // 4th level of octree CHECK THAT THIS IS CORRECT SYNTAX
+	init.rSum_=0;init.gSum_=0;init.bSum_=0;init.count_=0;init.parent_=0;init.index_=0;
+	struct Node octree4[8*8*8*8]; // 4th level of octree. 8 = degree of octree
 	struct Node octree2[8*8] = { init }; // 4th level of octree
+
+	// initialize octree4
+	int i;
+	for (i = 0; i < 8*8*8*8; i++){ // 8 = degree of octree
+		init.index_=i;
+		octree4[i]=init;
+	}
 
 
     /* 
@@ -520,7 +517,6 @@ read_photo (const char* fname)
 	// through the first 128 values of octree4 and compare to each. 
 	qsort(octree4, (8*8*8*8), sizeof(struct Node), cmpfunc);
 
-	int i;
 	for (i=0;i<128;i++){ // code to remove top 128 4th level nodes contribution from second level. 128=top 128 
 	// highest count level 4 nodes
 		octree2[octree4[i].parent_].rSum_ -= octree4[i].rSum_;
@@ -534,20 +530,20 @@ read_photo (const char* fname)
 		if (i<(3*64)){
 			if (octree2[i/3].count_){
 				if (i%3 == 0)
-					(p->palette)[i/3][0] = octree2[i/3].rSum_/octree2[i/3].count_;
+					(p->palette)[i/3][0] = (octree2[i/3].rSum_/octree2[i/3].count_)<<1;
 				if (i%3 == 1)
 					(p->palette)[i/3][1] = octree2[i/3].gSum_/octree2[i/3].count_;
 				if (i%3 == 2)
-					(p->palette)[i/3][2] = octree2[i/3].bSum_/octree2[i/3].count_;
+					(p->palette)[i/3][2] = (octree2[i/3].bSum_/octree2[i/3].count_)<<1;
 			}
 		} else {
 			if (octree4[i/3].count_){
 				if (i%3 == 0)
-					(p->palette)[i/3][0] = octree4[(i/3)-64].rSum_/octree4[(i/3)-64].count_;
+					(p->palette)[i/3][0] = (octree4[(i/3)-64].rSum_/octree4[(i/3)-64].count_)<<1;
 				if (i%3 == 1)
 					(p->palette)[i/3][1] = octree4[(i/3)-64].gSum_/octree4[(i/3)-64].count_;
 				if (i%3 == 2)
-					(p->palette)[i/3][2] = octree4[(i/3)-64].bSum_/octree4[(i/3)-64].count_;
+					(p->palette)[i/3][2] = (octree4[(i/3)-64].bSum_/octree4[(i/3)-64].count_)<<1;
 			}
 		}
 	}
@@ -564,7 +560,7 @@ read_photo (const char* fname)
 					(void)fclose (in);
 				return NULL;
 			}
-			p->img[p->hdr.width * y + x] = determinePaletteValue(pixel,p->palette);
+			p->img[p->hdr.width * y + x-2] = determinePaletteValue(pixel,p->palette,octree4);
 		} 
     }
 
@@ -582,22 +578,22 @@ int cmpfunc (const void * a, const void * b) { // with this compare, highest cou
  *   DESCRIPTION: helper function that determines which palette color an rgb pixel should have
  *   INPUTS: pixel -- 16bit rgb value for pixel to determine palette value of.
  * 			palette -- 192*3 byte array of the rgb values for the newly created 192 colors in the palette
+ * 			levle4 -- level 4 of the octree
  *   OUTPUTS: none
  *   RETURN VALUE: palette index
  *   SIDE EFFECTS: none
  */
-uint8_t determinePaletteValue(uint16_t pixel, uint8_t palette[192][3]){
+uint8_t determinePaletteValue(uint16_t pixel, uint8_t palette[192][3], struct Node level4[8*8*8*8]){
+	// 8=degree of octree
 	int i;
-	for (i = 0; i < 192; i++){ // 192 =size of newly defined palette section
-		/* 16-bit pixel is coded as 5:6:5 RGB (5 bits red, 6 bits green,
-		and 5 bits blue). */
-		// if we find a match for this RGB value in the palette
-		if (palette[i][0] == ((pixel>>11)&0x001F)){ //11=start of R bits. x001F=masks first 5 bits
-			if (palette[i][1] == ((pixel>>5)&0x003F)){ //5=start of R bits. x003F=masks first 6 bits
-				if (palette[i][2] == (pixel&0x001F)){ //x001F=masks first 5 bits
-					return i + 64; //64=offset from start of palette to skip colors for status bar
-				}
-			}
+	for (i = 0; i < 128; i++){ // 192 =size of newly defined palette section
+		// expression evaluates to 0000RRRRGGGGBBBB, which will be the index into level 4 of the octree
+		uint16_t index = ((((pixel>>12)&0xF)<<8)|(((pixel>>7)&0xF)<<4)|((pixel>>1)&0xF)); 
+		/* 12=start of 4 red msbs. xF=masks shifted red and dont care bits. 8=makes space for 8 G and B bits. 
+		7=start of 4 green msbs. xF=masks shifted red and dont care bits. 4=makes space for 4 B bits. 
+		1=start of 4 blue msbs. xF=masks shifted red,green, and dont care bits.  */
+		if (index == level4[i].index_){
+			return i+128; //128=offset for status bar and object palette+offset for level 2 of octree
 		}
 	}
 	// else we return it's level 2 parent
@@ -609,4 +605,4 @@ uint8_t determinePaletteValue(uint16_t pixel, uint8_t palette[192][3]){
 	3=start of 2 blue msbs. x3=masks shifted red,green, and dont care bits. */
 	
 }
-
+//check

@@ -52,6 +52,17 @@
 #define MAX_OBJECT_WIDTH  160
 #define MAX_OBJECT_HEIGHT 100
 
+struct Node {
+	/* numerators in caluclation of averages (sum of values for rgb 
+	pixels mapped to this node in octree) */
+	int rSum_; int gSum_; int bSum_;
+	/* denominator in caluclation of averages (number of pixels mapped to 
+	this node in octree) */
+	int count_;
+	int parent_; /* index of parent in level 2 of octree. =0 if this is a level 2 node*/
+	int index_; /* index of this node to be preserved after qsort */
+};
+
 
 /* Fill a buffer with the pixels for a horizontal line of current room. */
 extern void fill_horiz_buffer (int x, int y, unsigned char buf[SCROLL_X_DIM]);
@@ -87,7 +98,7 @@ extern photo_t* read_photo (const char* fname);
 int cmpfunc (const void * a, const void * b);
 
 /* helper function that determines which palette color an rgb pixel should have */
-uint8_t determinePaletteValue(uint16_t pixel, uint8_t palette[192][3]);
+uint8_t determinePaletteValue(uint16_t pixel, uint8_t palette[192][3], struct Node level4[8*8*8*8]);
 
 /* 
  * N.B.  I'm aware that Valgrind and similar tools will report the fact that
